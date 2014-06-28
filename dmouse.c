@@ -29,7 +29,7 @@ void reset(void);
 void button(int);
 void read_info(void);
 void read_coord(void);
-void halve(char s);
+int halve(char s);
 void warp(void);
 void save_coord(void);
 
@@ -46,11 +46,11 @@ int main(int argc,char *argv[]) {
 
 	printf("coord %u %u, zoom %u\n",data.mouse.x,data.mouse.y,data.zoom);
 
-	halve(argv[1][0]);
+	int need_warp=halve(argv[1][0]);
 
 	printf("warping to %u %u, zoom %u\n",data.mouse.x,data.mouse.y,data.zoom);
 
-	warp();
+	if(need_warp) warp();
 	save_coord();
 
 	close_x();
@@ -58,7 +58,7 @@ int main(int argc,char *argv[]) {
 
 #define MAX(x,y) ((x>y)?(x):(y))
 
-void halve(char q) {
+int halve(char q) {
 	int x,y;
 
 	switch(q) {
@@ -76,9 +76,9 @@ void halve(char q) {
 
 	case 'R': reset(); return;
 
-	case 'l': button(0); return;
-	case 'm': button(1); return;
-	case 'r': button(2); return;
+	case 'l': button(Button1); return 0;
+	case 'm': button(Button2); return 0;
+	case 'r': button(Button3); return 0;
 	}
 
 	int fx=MAX(1,data.screen.w/data.zoom);
@@ -90,6 +90,8 @@ void halve(char q) {
 	data.mouse.y=data.mouse.y+y*fy;
 
 	if(fx>1 || fy>1) data.zoom*=3;
+
+	return 1;
 }
 
 void reset(void) {
@@ -147,32 +149,36 @@ void close_x(void) {
 }
 
 void button(int b) {
-	XEvent event;
+	XButtonEvent event;
 	
 	memset(&event,0,sizeof(event));
 	
 	event.type=ButtonPress;
-	event.xbutton.button=b;
-	event.xbutton.same_screen=True;
+	event.button=b;
+	event.root=RootWindow(data.dpy,DefaultScreen(data.dpy));
+	event.same_screen=True;
+	event.display=data.dpy;
+	event.subwindow=None;
+	event.time=CurrentTime;
 	
-	XQueryPointer(data.dpy,RootWindow(data.dpy,DefaultScreen(data.dpy)),&event.xbutton.root,&event.xbutton.window,&event.xbutton.x_root,&event.xbutton.y_root,&event.xbutton.x,&event.xbutton.y,&event.xbutton.state);
-	event.xbutton.subwindow=event.xbutton.window;
+	XQueryPointer(data.dpy,RootWindow(data.dpy,DefaultScreen(data.dpy)),&event.root,&event.window,&event.x_root,&event.y_root,&event.x,&event.y,&event.state);
+	event.subwindow=event.window;
 	
-	while(event.xbutton.subwindow)
+	while(event.subwindow)
 	{
-		event.xbutton.window=event.xbutton.subwindow;
-		XQueryPointer(data.dpy,event.xbutton.window,&event.xbutton.root,&event.xbutton.subwindow,&event.xbutton.x_root,&event.xbutton.y_root,&event.xbutton.x,&event.xbutton.y,&event.xbutton.state);
+		event.window=event.subwindow;
+		XQueryPointer(data.dpy,event.window,&event.root,&event.subwindow,&event.x_root,&event.y_root,&event.x,&event.y,&event.state);
 	}
 	
-	XSendEvent(data.dpy,PointerWindow,True,0xfff,&event);
+	XSendEvent(data.dpy,PointerWindow,True,ButtonPressMask,(XEvent *)&event);
 	XFlush(data.dpy);
 	
 	usleep(100000);
 	
 	event.type=ButtonRelease;
-	event.xbutton.state=0x100;
+	event.state=0x100;
 	
-	XSendEvent(data.dpy,PointerWindow,True,0xfff,&event);
+	XSendEvent(data.dpy,PointerWindow,True,ButtonPressMask,(XEvent *)&event);
 	XFlush(data.dpy);
 }
 
